@@ -3,12 +3,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-COPY JwtGenerator.sln ./
-COPY JwtGenerator.csproj ./
-RUN dotnet restore ./JwtGenerator.csproj
+COPY *.csproj ./
+RUN dotnet restore
 
 COPY . ./
-RUN dotnet publish ./JwtGenerator.csproj -c Release -o /app/publish
+RUN dotnet publish -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
