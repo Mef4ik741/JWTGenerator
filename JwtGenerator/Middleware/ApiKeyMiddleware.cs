@@ -18,14 +18,13 @@ public sealed class ApiKeyMiddleware : IMiddleware
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        var env = context.RequestServices.GetService<IHostEnvironment>();
-        if (env is not null && env.IsDevelopment() &&
-            context.Request.Path.StartsWithSegments("/swagger", StringComparison.OrdinalIgnoreCase))
+        // Разрешаем Swagger UI без API ключа
+      if (context.Request.Path.StartsWithSegments("/swagger", StringComparison.OrdinalIgnoreCase))
         {
             await next(context);
             return;
         }
-
+  
         if (!context.Request.Headers.TryGetValue(HeaderName, out var apiKey) || string.IsNullOrWhiteSpace(apiKey))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
