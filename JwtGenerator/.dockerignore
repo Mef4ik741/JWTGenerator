@@ -1,0 +1,13 @@
+**/.idea/
+**/.vs/
+**/.vscode/
+**/bin/
+**/obj/
+**/*.user
+**/*.suo
+**/*.cache
+**/*.nupkg
+**/TestResults/
+**/artifacts/
+.git/
+.gitignore
