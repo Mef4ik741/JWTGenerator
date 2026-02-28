@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using JwtGenerator.Abstractions;
 using JwtGenerator.Constants;
 using JwtGenerator.Contracts;
+using JwtGenerator.Options;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 

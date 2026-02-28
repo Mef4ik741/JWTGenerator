@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using JwtGenerator.Constants;
 
-namespace JwtGenerator;
+namespace JwtGenerator.Options;
 
 public sealed class JwtOptions
 {

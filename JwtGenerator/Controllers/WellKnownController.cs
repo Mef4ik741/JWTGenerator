@@ -1,6 +1,7 @@
 using JwtGenerator.Abstractions;
 using JwtGenerator.Constants;
 using JwtGenerator.Contracts;
+using JwtGenerator.Options;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 

@@ -1,4 +1,5 @@
 using JwtGenerator.Abstractions;
+using JwtGenerator.Options;
 using Microsoft.Extensions.Options;
 
 namespace JwtGenerator.Services;
