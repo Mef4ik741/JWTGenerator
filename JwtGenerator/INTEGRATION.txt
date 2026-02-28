@@ -1,0 +1,176 @@
+================================================================================
+JWT GENERATOR - Интеграция для клиентских сервисов
+URL: https://jwtgenerator-production.up.railway.app
+================================================================================
+
+ВАЖНО: Эта документация для СЕРВИСОВ-КЛИЕНТОВ, которые ПРОВЕРЯЮТ JWT.
+JwtGenerator на Railway генерирует токены, клиентские сервисы их проверяют.
+
+1. ЧТО ДЕЛАЕТ КЛИЕНТСКИЙ СЕРВИС
+================================================================================
+
+  Клиентский сервис (твой другой микросервис):
+  1. ПОЛУЧАЕТ токен от JwtGenerator (через POST /api/Tokens/generate)
+  2. ПРОВЕРЯЕТ токен используя JWKS endpoint от JwtGenerator
+  
+  Клиент НЕ создает:
+  - JWKS endpoint
+  - TokensController
+  - OpenID Configuration
+  
+  Это уже есть в JwtGenerator на Railway.
+
+
+2. НАСТРОЙКА КЛИЕНТСКОГО СЕРВИСА
+================================================================================
+
+  2.1 Установите пакет:
+  ----------------------------------------------------------------------------
+  dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer
+
+  2.2 appsettings.json:
+  ----------------------------------------------------------------------------
+  {
+    "TestJwt": {
+      "Authority": "https://jwtgenerator-production.up.railway.app",
+      "Issuer": "JwtGenerator",
+      "Audience": "local-dev"
+    }
+  }
+
+  2.3 Program.cs:
+  ----------------------------------------------------------------------------
+  using Microsoft.AspNetCore.Authentication.JwtBearer;
+  using Microsoft.IdentityModel.Tokens;
+
+  var builder = WebApplication.CreateBuilder(args);
+
+  var jwtSettings = builder.Configuration.GetSection("TestJwt");
+
+  builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+      .AddJwtBearer(options =>
+      {
+          options.Authority = jwtSettings["Authority"];
+          
+          options.TokenValidationParameters = new TokenValidationParameters
+          {
+              ValidateIssuer = true,
+              ValidIssuer = jwtSettings["Issuer"],
+              
+              ValidateAudience = true,
+              ValidAudience = jwtSettings["Audience"],
+              
+              ValidateLifetime = true,
+              ClockSkew = TimeSpan.Zero,
+              
+              // Автозагрузка ключей из JWKS JwtGenerator
+              IssuerSigningKeyResolver = (token, secToken, kid, validationParameters) =>
+              {
+                  var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                  var jwks = client.GetFromJsonAsync<JwksResponse>(
+                      "https://jwtgenerator-production.up.railway.app/.well-known/jwks.json")
+                      .GetAwaiter().GetResult();
+                  
+                  var key = jwks.Keys.FirstOrDefault(k => k.Kid == kid);
+                  if (key == null) return null;
+                  
+                  // Конвертация RSA ключа
+                  if (key.Kty == "RSA")
+                  {
+                      var rsa = RSA.Create();
+                      rsa.ImportParameters(new RSAParameters
+                      {
+                          Modulus = Base64UrlEncoder.DecodeBytes(key.N),
+                          Exponent = Base64UrlEncoder.DecodeBytes(key.E)
+                      });
+                      return new RsaSecurityKey(rsa) { KeyId = key.Kid };
+                  }
+                  
+                  return null;
+              }
+          };
+      });
+
+  builder.Services.AddAuthorization();
+
+  var app = builder.Build();
+
+  app.UseAuthentication();
+  app.UseAuthorization();
+
+  app.MapControllers();
+  app.Run();
+
+
+3. ЗАЩИТА ENDPOINT'ОВ
+================================================================================
+
+  [ApiController]
+  [Route("api/[controller]")]
+  [Authorize]  // <-- Требует валидный JWT
+  public class UsersController : ControllerBase
+  {
+      [HttpGet("profile")]
+      public IActionResult GetProfile()
+      {
+          var userId = User.FindFirst("sub")?.Value;
+          var role = User.FindFirst("role")?.Value;
+          
+          return Ok(new { userId, role });
+      }
+  }
+
+
+4. ПАРАМЕТРЫ ТОКЕНА (для информации)
+================================================================================
+
+  Algorithm:   RS256
+  Issuer:      JwtGenerator
+  Audience:    local-dev
+  
+  Claims в токене:
+  - sub:     Subject (ID пользователя)
+  - role:    Роль пользователя (если передана)
+  - jti:     Unique token ID
+  - iat:     Время создания
+  - exp:     Время истечения
+
+
+5. КЭШИРОВАНИЕ JWKS (РЕКОМЕНДУЕТСЯ)
+================================================================================
+
+  Для production добавьте кэширование JWKS с помощью MemoryCache:
+
+  builder.Services.AddMemoryCache();
+
+  // В JwtBearer настройках:
+  IssuerSigningKeyResolver = (token, secToken, kid, validationParameters) =>
+  {
+      var cache = context.RequestServices.GetRequiredService<IMemoryCache>();
+      
+      if (!cache.TryGetValue("jwks", out JwksResponse? jwks))
+      {
+          var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+          jwks = client.GetFromJsonAsync<JwksResponse>(
+              "https://jwtgenerator-production.up.railway.app/.well-known/jwks.json")
+              .GetAwaiter().GetResult();
+          
+          cache.Set("jwks", jwks, TimeSpan.FromMinutes(5));
+      }
+      
+      // ... конвертация ключа
+  };
+
+
+6. ВАЖНЫЕ ЗАМЕЧАНИЯ
+================================================================================
+
+  - Ключи ротируются автоматически в JwtGenerator
+  - Клиент всегда загружает актуальные ключи из JWKS
+  - Не хардкодьте ключи в клиенте
+
+
+================================================================================
+Документация создана: 28.02.2026
+JWT Generator URL: https://jwtgenerator-production.up.railway.app
+================================================================================
